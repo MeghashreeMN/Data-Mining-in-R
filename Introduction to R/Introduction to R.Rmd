@@ -1,0 +1,795 @@
+---
+author: "Meghashree Maddihally Nagoji"
+date: "2/8/2022"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(hflights)
+library(datasets)
+```
+
+## Problem 1. 
+
+Explain what each line of the following R code do? You can run them in R and check the results.
+
+1.a
+```{r}
+x <-c(1,2.3,2,3,4,8,12,43,-4,-1)
+x
+```
+Creates a vector and assigns it to variable x.
+
+
+1.b
+```{r}
+max(x)
+```
+
+Max function takes the vector(x) as input parameter and outputs the maximum element in the vector x i.e. 43.
+
+
+1.c
+```{r}
+y<-c(x,NA)
+y
+```
+Creates a vector y with the elements of x and appends NA to the end of the vector.
+
+
+1.d
+```{r}
+max(y,na.rm = T)
+```
+Prints the maximum element of vector y without considering NA. i.e. 43.
+
+
+1.e
+```{r}
+x2 <-c(-100,-43,0,3,1,-3)
+min(x,x2)
+```
+Creates a vector x2 and the min() function prints the minimum element of all the elements present in vector x and x2.
+
+
+1.f
+```{r}
+sample(4:10)
+```
+The sample() function prints elements from 4 to 10 in random order.
+
+
+1.g
+```{r}
+sample(c(2,5,3),size = 3,replace = FALSE)
+```
+A vector is created with elements 2,5 and 3. Three elements are selected at random from the created vector. The elements cannot be repeated.
+
+
+1.h
+```{r}
+sample(c(2,5,3), size = 3,replace = TRUE)
+```
+A vector is created with elements 2,5 and 3. Three elements are selected at random from the created vector. The elements can be repeated.
+
+
+1.i
+```{r}
+sample(2,10, replace = TRUE)
+```
+Ten elements are selected from 1 to 2 at random. The values can be repeated.
+
+
+1.j
+```{r}
+sample(1:2,size=10,prob=c(1,3),replace=TRUE)
+```
+Selects ten elements from 1 to 2 at random. The probability of getting element 1 is 25% and the probability of getting element 2 is 75%.
+
+
+1.k
+```{r}
+round(3.14159,digits = 2)
+```
+Rounds the number to two digits after the decimal point.
+
+
+1.l
+```{r}
+range(100:400)
+```
+Prints a vector with the minimum and maximum elements in the range 100 to 400.
+
+
+1.m
+```{r}
+matrix(c(1,2.3,2,3,4,8,12,43,-4,-1,9,14), nr=3,nc=4)
+```
+Creates a matrix with 3 rows and 4 columns and fills it by column by default.
+
+
+1.n
+```{r}
+matrix(c(1,2.3,2,3,4,8,12,43,-4,-1,9,14),nr=3,nc=4,byrow = T)
+```
+Creates a matrix with 3 rows and 4 columns and fills it by row.
+
+
+1.o
+```{r}
+x <-matrix(c(4,3,4,6,7,6),3,2) 
+rownames(x) <-c("row1","row2","row3")
+colnames(x) <-c("col1","col2")
+x
+```
+Creates a matrix of elements 4,5,4,6,7,6 with 3 rows and 2 columns and fills it by columns. Then adds a label to the rows and columns.
+
+
+1.p
+```{r}
+x <- rbind(c(1:4),c(5,8))
+x
+```
+Creates a matrix x by joining elements from 1 to 4 and elements 5 and 8 by rows. Since there are four elements in the first argument, it repeats 5 and 8 twice to match the elements in argument 1 (4 columns, 2 rows).
+
+```{r}
+y <- cbind(c(1:4),c(5,8))
+y
+```
+Creates a matrix x by joining elements from 1 to 4 and elements 5 and 8 by column. Since there are four elements in the first argument, it repeats 5 and 8 twice to match the elements in argument 1 (2 columns, 4 rows).
+
+
+1.q
+```{r}
+y<-1:9
+w<-2:10 
+z<-3:5
+rbind(y,w,z)
+```
+Creates a matrix of 3 rows and 9 columns by binding elements row wise. Row 1 has elements from 1 to 9, row 2 has elements from 2 to 10, row 3 has elements from 3 to 5 which are repeated to match the number of elements in row 1 or row 2.
+
+
+1.r
+```{r}
+m<-matrix(1:36,9,4)
+m
+```
+Creates a matrix of 9 rows and 4 columns with elements from 1 to 36 which are filled column wise.
+
+```{r}
+m[2,3]
+```
+Prints the element of 2nd row and 3rd column.
+
+```{r}
+m[,3]
+```
+Prints all the elements of column 3 in row format.
+
+```{r}
+m[2,]
+```
+Prints all the elements of row 2.
+
+```{r}
+cbind(m[,3])
+```
+Prints elements of 3rd column of matrix m in column format.
+
+```{r}
+m[,-3]
+```
+Prints only the 1st, 2nd and 4th columns of matrix m. Doesn't print 3rd column.
+
+```{r}
+m[-(3:8),2:4]
+```
+Prints elements of 1st, 2nd, 9th rows ignoring the rows from 3 to 8 and prints elements of columns 2,3 and 4.
+
+
+1.s
+```{r}
+x<-cbind(x1=3,x2=c(4:1,2:5))
+x
+```
+Creates a matrix with column labels x1 and x2. x1 column has element 3 for all of its corresponding rows. x2 has values of vector containing elements 4 to 1 and 2 to 5. The number of rows in x1 depends on x2 (number of rows of x2= 8)
+
+```{r}
+dimnames(x)[[1]] <-letters[1:8]
+x
+```
+Prints the matrix x with row labels having letters from a to h.
+
+```{r}
+apply(x,2,mean,trim = .2)
+```
+Applies the mean function on the columns of the vector x. Mean of first column is 3, since all rows of column 1 has the value 1. Mean of second column is 3, since there are 8 rows and total of x2 is 24. 20% trimmed mean is applied.
+
+```{r}
+col.sums <-apply(x,2,sum)
+col.sums
+```
+Applies the sum function on the columns of the vector x. Total of first column is 3x8 = 24. Similar to the second column.
+
+```{r}
+row.sums <-apply(x,1,sum)
+row.sums
+```
+Applies the sum function on the rows of the vector x, first row has values 3 and 4, hence the sum is 7.
+
+```{r}
+apply(x,2,sort)
+```
+Applies the sort function on the columns of vector x. First column has only values 3, so it is already sorted. Second column's values are sorted in ascending order.
+
+
+
+
+
+
+## Problem 2. 
+
+Write the corresponding R code for each of the following questions. Try to use the functions in dplyr package, if possible.
+
+2.a
+Assign the value 15 to a variable x and create a vector y with the values [1, 2, 3, 10, 100]. Multiply those vectors component-wise and save the result in an object z. Calculate the sum of all elements in z.
+
+```{r}
+x <- 15
+x
+```
+
+```{r}
+y <- c(1,2,3,10,100)
+y
+```
+
+```{r}
+z <- x * y
+z
+```
+
+```{r}
+sum(z)
+```
+
+
+2.b
+Generate a sequence from 0 to 10 and a sequence from 5 to −5.
+
+```{r}
+a <- 0:10
+a
+
+b <- 5:-5
+b
+```
+
+
+2.c
+Generate a sequence from −3 to 3 by 0.1 steps.
+
+```{r}
+c <- seq(-3,3, by = 0.1)
+c
+```
+
+2.d
+Define two vectors with the following data: t includes the strings “mon”, “tue”, “wed”, “thu”, “fri”, “sat”; and m includes [90, 80, 50, 20, 5, 20]. Concatenate both vectors column-wise into a matrix with 6 rows and 2 columns and save this a a new object named study.
+
+```{r}
+t <- c("mon", "tue", "wed", "thu", "fri", "sat")
+t
+```
+
+```{r}
+m <- c(90,80,50,20,5,20)
+m
+```
+
+```{r}
+study <- cbind(t,m)
+study
+```
+
+
+2.e
+Create the following data frame:\
+                                    age sex height weight\
+                                    21  m   181    69\
+                                    35  f   173    58\
+                                    829 m   171    75\
+                                    2   e   166    60\
+                                    
+Calculate the minimum and maximum value in the column age. Obviously, there have been some issues collecting the data. Generate a variable selection that contains the result to the logical query of age under 20 and above 80. Use this variable to set the age observations to NA if age is under 20 or above 80. Calculate the Body Mass Index (BMI)
+
+                                    BMI = Weight in kg/Length in m
+                                
+of all people from the previous data frame. Store the results in a variable BMI and append it to your data frame. Round the resulting values.
+
+
+```{r}
+age <- c(21,35,829,2)
+sex <- c("m","f","m","e")
+height <- c(181,173,171,166)
+weight <- c(69,58,75,60)
+
+df <- data.frame(age,sex,height,weight)
+df
+```
+
+```{r}
+print(min(df$age))
+```
+
+```{r}
+print(max(df$age))
+```
+
+```{r}
+selection <- df$age<20 | df$age>80
+df$age[selection==TRUE] <- NA
+df
+```
+
+```{r}
+BMI <- round(df$weight/(df$height/100))
+BMI
+```
+Presuming height is in cm, we are converting to meter by dividing height by 100.
+
+```{r}
+df1 <- cbind(df,BMI)
+df1
+```
+
+
+
+
+
+
+## Problem 3. 
+
+Set x to the following vector:
+
+```{r}
+x <-c(9, 8, 12, 6, 1, 10, 10, 10, 8, 516, 8, 6, 4, 19, 100)
+```
+
+Provide the corresponding R function for each of the following task.
+
+3.a
+Compute the mean of x.
+
+```{r}
+mean(x)
+```
+
+3.b
+Compute the standard deviation of x.
+
+```{r}
+sd(x)
+```
+
+3.c
+Compute the range of x.
+
+```{r}
+range(x)
+```
+
+3.d
+Provide the five number summary of x.
+
+```{r}
+fivenum(x)
+```
+
+3.e
+Is there any NA in x?
+
+```{r}
+is.na(x)
+```
+There is no NA in x.
+
+3.f
+Are there any outliers in x? If yes, remove them.
+
+boxplot the vector x to check for outliers.
+
+```{r}
+boxplot(x)
+```
+
+Yes, There are outliers present.
+
+
+
+Removing outliers
+```{r}
+outliers <- boxplot(x, plot=FALSE)$out
+outliers
+x<- x[-which(x %in% outliers)]
+boxplot(x)
+```
+
+
+
+
+
+
+## Problem 4.
+
+Consider the arbuthnot.csv dataset. This dataset refers to Dr. John Arbuthnot who was interested in the ratio of newborn boys to newborn girls. He gathered the baptism records for children born in London for every year from 1629 to 1710. Please include the corresponding R code you use to answer each of the questions below.
+
+Reading arbuthnot.csv file
+
+```{r}
+arbuthnot <- read.csv("C:/Users/mmaddi2/Downloads/Spring 2022/Data Mining/Assignment 1/arbuthnot.csv")
+```
+
+4.a
+What is the dimension of this dataset?
+
+```{r}
+dim(arbuthnot)
+```
+
+4.b
+What are the names of the variables in this dataset?
+
+```{r}
+names(arbuthnot)
+```
+
+4.c
+What command would you use to extract just the counts of girls baptized?
+
+```{r}
+length(arbuthnot$girls)
+```
+
+4.d
+Is there an apparent trend in the number of girls baptized over the years? How would you describe it?
+
+```{r}
+ggplot(data = arbuthnot, mapping = aes(x = year, y = girls)) + geom_line() +
+  ggtitle("Number Girls Baptized over Years") + xlab("Year") + 
+  ylab("No of Girls Baptized")
+```
+
+There was an initial positive trend in the number of girls baptized over years till 1640, then there was a steep negative trend till 1660. Finally, the positive trend continued again. There seemed to be a steep down trend in 1703, which was quickly followed by a correction.
+
+4.e
+Now, make a plot of the proportion of boys over time. What do you see?
+
+```{r}
+p <- arbuthnot$boys / (arbuthnot$boys + arbuthnot$girls)
+
+ggplot(data = arbuthnot, mapping = aes(x = year, y = p)) + geom_line() +
+  ggtitle("Propotion of Boys Baptized over Years") + xlab("Year") + 
+  ylab("Propotion of Boys Baptized")
+```
+The proportion of boys Baptized overtime is generally between 50% and 53.5%.
+
+4.f
+In what year did we see the most total number of births in the London?
+
+```{r}
+arbuthnot %>% select(year) %>% filter(arbuthnot$boys == max(arbuthnot$boys))
+```
+The most total number of births in London was in the year 1698.
+
+
+
+
+
+
+## Problem 5.
+
+In this question, we use the built-in R dataset called attitude which contains information from a survey of the clerical employees of a large financial organization. To access this date set use “data(“attitude”)”. Learn more about each variable by reading the variable description in ?attitude.
+
+5.a
+Summarize the main statistics of all the variables in the data set.
+
+```{r}
+att<-attitude
+
+summary(att)
+```
+
+
+5.b
+How many observations are in the attitude dataset? What function in R did you use to display this information?
+
+```{r}
+str(attitude)
+```
+There are 30 observations in 'attitude' dataset. 
+str() function in R returns information such as number of observations, number of variables.
+
+OR
+
+```{r}
+nrow(attitude)
+```
+nrow() function returns the number of rows which are the number of observations in the dataset.
+
+
+5.c
+Produce a scatterplot matrix of the variables in the attitude dataset. What seems to be most correlated with the overall rating?
+
+```{r}
+plot(attitude)
+```
+Based on the graph, Complaints seems to be the most correlated with the overall rating. We also used the function cor() to verify the correlation between variables.
+
+
+5.d
+Produce a scatterplot of rating (on the y-axis) vs. learning (on the x-axis). Add a title to the plot.
+
+```{r}
+ggplot (att, mapping = aes(x=learning,y=rating)) +
+  geom_point()+
+  ggtitle("Scatterplot of Rating vs Learning")
+```
+
+
+5.e
+Produce 2 side-by-side histograms, one for rating and one for learning. You will need to use par(mfrow=...) to get the two plots together.
+
+```{r}
+rating <- att$rating
+learning <- att$learning
+par(mfrow = c(1, 2))
+hist(rating)
+hist(learning)
+```
+
+
+
+
+
+
+## Problem 6. 
+
+Write the corresponding R code for each of the following questions. Try to use the functions in dplyr package, if possible.
+
+6.a
+In one or two lines describe what this data set is about. What variables are included in this dataset (look at the help: ?mtcars)?
+
+mtcars dataset is obtained from the 1974 Motor Trend US magazine. The dataset consists of data such as fuel consumption and 10 aspects of car design for 32 automobiles.  
+
+The are 11 numeric variables in this dataset:\
+mpg	    Miles/(US) gallon\
+cyl	    Number of cylinders\
+disp	  Displacement (cu.in.)\
+hp	    Gross horsepower\
+drat	  Rear axle ratio\
+wt	    Weight (1000 lbs)\
+qsec	  1/4 mile time\
+vs	    Engine (0 = V-shaped, 1 = straight)\
+am	    Transmission (0 = automatic, 1 = manual)\
+gear	  Number of forward gears\
+carb	  Number of carburetors\
+
+
+6.b
+Create a box plot using ggplot showing the range of values of 1/4 mile time (qsec) for each tansmission type (am, 0 = automatic, 1 = manual) from the mtcars data set. Use “Transmission Type” and “1/4 Mile Time” for your y- and x-axes respectively. Also, add the title to your graph.
+
+```{r}
+cars <- mtcars
+
+cars$am = factor(cars$am, levels=c(0,1), labels=c("Automatic","Manual"))
+cars %>%
+  ggplot(mapping = aes(x = qsec, y = am)) + 
+  geom_boxplot() +
+  ggtitle("1/4 Mile Time for each Transmission Type") + 
+  xlab("1/4 Mile Time") + 
+  ylab("Transmission Type")
+```
+
+
+6.c
+Create a bar graph using ggplot, that shows the number of each carb type in mtcars.
+
+```{r}
+cars %>%
+  ggplot(aes(carb)) +
+  geom_bar() +
+  ggtitle("Number Of Each Carb Type")
+```
+
+
+6.d
+Next show a stacked bar graph using ggplot of the number of each gear type and how they are further divided out by cyl. Add labels and a title to your plot.
+
+```{r}
+cars$gear = factor(cars$gear)
+cars$cyl = factor(cars$cyl)
+
+cars %>%
+  ggplot(aes(x = gear, fill = cyl)) + 
+  geom_bar() +
+  ggtitle ("Number of Gear Type by Cylinders")+
+  xlab("Gears") +
+  ylab("Number of Cylinders")
+```
+
+6.e
+Draw a scatter plot using ggplot showing the relationship between wt and mpg.
+
+```{r}
+cars %>%
+  ggplot(aes(x=wt, y=mpg)) +
+  geom_point() +
+  ggtitle ("Relationship between Weight and Miles per Gallon")
+```
+
+6.f
+Draw a scatter plot to investigate the relationship between “disp” and “mpg”. What do you observe. Explain.
+
+```{r}
+cars %>%
+  ggplot(aes(x=disp, y=mpg)) +
+  geom_point() +
+  ggtitle ("Relationship between Displacement and Miles per Gallon")
+```
+Observation: With an increase in the displacement, the fuel efficiency measured in miles per gallon is decreased.
+
+6.g
+Create a scatter plot that shows the relationship between various car weights (wt), miles per gallon (mpg) and engine cylinders (cyl). Use colored points to show the different cylinders in the plot. Note: you will need to convert cyl to a factor. You will need the function factor() to do this.
+
+```{r}
+cars$cyl <- factor(cars$cyl)
+cars %>%
+  ggplot(aes(x=wt, y=mpg))+
+  geom_point(aes(color=cyl)) +
+  ggtitle ("Relationship betwwen wt, mpg and cyl")
+```
+
+6.h
+Using the solution from part (g), create a new plot using shapes to differentiate the various engine cylinders.
+
+```{r}
+cars %>%
+  ggplot(aes(x=wt, y=mpg))+
+  geom_point(aes(color=cyl, shape=cyl)) +
+  ggtitle ("Shapes to differentiate various engine cylinders")
+```
+
+
+
+
+
+
+## Problem 7.
+
+Download the gapminder.csv data and read it into R. Assign the data to an object called gm. Use this dataset to answer the following questions. Try to use the functions in dplyr package if possible.
+
+Reading gapminder.csv file
+
+```{r}
+gm <- read.csv("C:/Users/mmaddi2/Downloads/Spring 2022/Data Mining/Assignment 1/gapminder.csv")
+```
+
+7.a
+How many unique countries are represented per continent?
+
+```{r}
+gm %>% group_by(continent) %>% summarize(unique_countries = n_distinct(country))
+```
+
+7.b
+Which European nation had the lowest GDP per capita in 1997?
+
+```{r}
+gm %>% filter(continent == "Europe" , year == 1997) %>% arrange(gdpPercap) %>% 
+  head(1)
+```
+Albania had the lowest GDP per capita in 1997.
+
+7.c
+According to the data available, what was the average life expectancy across each continent in the 1980s?
+
+```{r}
+gm %>% group_by(continent) %>% filter(year >= 1980, year <= 1989) %>% 
+  summarize(mean_lifeExp = mean(lifeExp))
+```
+
+7.d
+What 5 countries have the highest total GDP over all years combined?
+
+GDP is a measure that results from GDP per capita multiplied by the size of the nation's overall population
+
+```{r}
+gm %>% mutate(gdp = gdpPercap*pop) %>% group_by(country) %>% 
+  summarise(Total.GDP = sum(gdp)) %>% arrange(desc(Total.GDP)) %>% head(5)
+```
+United States, Japan, China, Germany and United Kingdom are the 5 countries having highest total GDP over all years combined.
+
+7.e
+What countries and years had life expectancies of at least 80 years? N.b. only output the columns of interest: country, life expectancy and year (in that order).
+
+```{r}
+gm %>% select(country, lifeExp, year) %>% filter(lifeExp >= 80)
+```
+
+
+
+
+
+
+## Problem 8. 
+
+To answer this question we use R built in data set “hflights” from hflights package. Write the corresponding R code to to answer the following questions. Try se the functions in dplyr package if possible.
+
+
+8.a
+Look at the first 20 instances in your data set.
+
+```{r}
+flights <- hflights
+
+head(hflights,20)
+```
+
+8.b
+View all flights on January 1st.
+
+```{r}
+flights %>% filter(Month == 1, DayofMonth == 1) %>% head(5)
+```
+We are printing only the top 5 rows of the result set.
+
+8.c
+Only view the part of the dataset that is related to American or United Airlines carriers.
+
+```{r}
+flights %>% filter(UniqueCarrier=="AA" | UniqueCarrier=="UA") %>% head(5)
+```
+We are printing only the top 5 rows of the result set.
+
+8.d
+Look at a subset of your dataset that contains the variables “Year, Month, DayofMonth” and any other variables that contains the words “Taxi” and “Delay”.
+
+```{r}
+flights %>% select(Year, Month, DayofMonth, contains("Taxi"), contains("Delay")) %>% head(5)
+```
+We are printing only the top 5 rows of the result set.
+
+8.e
+Print a subset of your dataset that includes the following variables “Departure Time”, “Arrivales Time” and “Flight Number”.
+
+```{r}
+flights %>% 
+  rename("Departure Time" = DepTime, "Arrivales Time" = ArrTime, "Flight Number" = FlightNum) %>% 
+  select("Departure Time", "Arrivales Time", "Flight Number") %>% head(5)
+```
+We are printing only the top 5 rows of the result set.
+
+8.f
+Print all the aircraft carriers whose departure time is delayed more than 60 minutes.
+
+```{r}
+x <- flights %>% select(UniqueCarrier) %>% filter(flights$DepDelay>60)
+unique(x)
+```
+
+8.g
+Look at the carriers with their departure delays and sort them based on their departure delays.
+
+```{r}
+arrange(flights, DepDelay) %>% select(UniqueCarrier, DepDelay) %>% head(5)
+```
+
+We are printing only the top 5 rows of the result set.

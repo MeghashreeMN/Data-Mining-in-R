@@ -1,0 +1,603 @@
+---
+author: "Meghashree Maddihally Nagoji"
+date: "3/18/2022"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+library("ltm")
+library("readxl")
+library("ggplot2")
+library("ggcorrplot")
+library("corrplot")
+library("dplyr")
+library("knitr")
+library("psych")
+library("funModeling")
+library("caret")
+library("gmodels")
+library("rpart.plot")
+library("rpart")
+library("randomForest")
+library("pROC")
+library("ROCR")
+```
+
+## Exploratory Data Analysis
+
+Reading data from the excel
+```{r}
+data<-read_excel("Retention modeling.xlsx", sheet =2)
+```
+
+Data Cleaning
+
+Removing the last 3 Redundant Rows
+```{r}
+n<-nrow(data)
+df<-data[1:(n-3),]
+```
+
+Group.State has 54 Levels and Random Forest can only take 53 Levels 
+So, Removing the First least occurred entry.
+```{r}
+df <- df %>% filter(!Group.State == "Bermuda")
+```
+
+Keeping the Special.pay Column to add it after we convert all the other Columns NA
+```{r}
+x <- df$Special.Pay
+df <- subset(df, select = -c(ID,Departure.Date,Return.Date,Deposit.Date,Early.RPL,
+                             Latest.RPL,Initial.System.Date,FirstMeeting,LastMeeting, 
+                             Special.Pay))
+```
+
+Replacing <NA> to True NA values. * Read_Excel doesn't read the NA values as na *
+```{r}
+df[df == "NA"] <- NA
+```
+
+Adding back the Special.Pay Column. NA in the Special.Pay is a Example Value, we are not removing them
+```{r}
+df <- cbind(df,Special.Pay=x)
+
+cols <- c('Program.Code','From.Grade', 'To.Grade', 'Group.State','Is.Non.Annual.',
+          'Travel.Type','Special.Pay','Poverty.Code','Region','CRM.Segment',
+          'School.Type','Parent.Meeting.Flag','MDR.Low.Grade','MDR.High.Grade',
+          'Income.Level','School.Sponsor','SPR.Product.Type','SPR.New.Existing',
+          'NumberOfMeetingswithParents','SchoolGradeTypeLow','SchoolGradeTypeHigh',
+          'SchoolGradeType','DepartureMonth','GroupGradeTypeLow','GroupGradeTypeHigh',
+          'GroupGradeType','MajorProgramCode','SingleGradeTripFlag','SchoolSizeIndicator'
+)
+```
+
+Factoring the Columns
+```{r}
+df[cols] <- lapply(df[cols], factor)
+```
+
+Converting to numeric values
+```{r}
+df$DifferenceTraveltoFirstMeeting <- as.numeric(df$DifferenceTraveltoFirstMeeting)
+df$DifferenceTraveltoLastMeeting <- as.numeric(df$DifferenceTraveltoLastMeeting)
+df$FPP.to.School.enrollment <- as.numeric(df$FPP.to.School.enrollment)
+```
+
+Number of NA values before replacing
+```{r}
+sum(is.na(df))
+```
+
+Function to replace NA's in both Categorical and Numerical Values
+```{r}
+for (i in colnames(df)){
+  if(class(df[[i]]) == 'factor'){
+    tt <- table(df[,i])
+    df[is.na(df[,i]), i] <- names(tt[tt==max(tt)])
+  } else {
+    df[is.na(df[,i]), i] <- mean(df[,i], na.rm = TRUE)
+  }
+}
+```
+
+Checking the type of all variables
+```{r}
+str(df)
+```
+
+Finding the outliers in numerical variables
+```{r}
+boxplot(df$Days)
+boxplot(df$Days)$out
+
+boxplot(df$Tuition)
+boxplot(df$Tuition)$out
+
+boxplot(df$FRP.Active)
+boxplot(df$FRP.Active)$out
+
+boxplot(df$FRP.Cancelled)
+boxplot(df$FRP.Cancelled)$out
+
+boxplot(df$FRP.Take.up.percent.)
+boxplot(df$FRP.Take.up.percent.)$out
+
+boxplot(df$Cancelled.Pax)
+boxplot(df$Cancelled.Pax)$out
+
+boxplot(df$Total.Discount.Pax)
+boxplot(df$Total.Discount.Pax)$out
+
+boxplot(df$Total.School.Enrollment)
+boxplot(df$Total.School.Enrollment)$out
+
+boxplot(df$EZ.Pay.Take.Up.Rate)
+boxplot(df$EZ.Pay.Take.Up.Rate)$out
+
+boxplot(df$FPP)
+boxplot(df$FPP)$out
+
+boxplot(df$Total.Pax)
+boxplot(df$Total.Pax)$out
+
+boxplot(df$SPR.Group.Revenue)
+boxplot(df$SPR.Group.Revenue)$out
+
+boxplot(df$DifferenceTraveltoFirstMeeting)
+boxplot(df$DifferenceTraveltoFirstMeeting)$out
+
+boxplot(df$DifferenceTraveltoLastMeeting)
+boxplot(df$DifferenceTraveltoLastMeeting)$out
+
+boxplot(df$FPP.to.School.enrollment)
+boxplot(df$FPP.to.School.enrollment)$out
+
+boxplot(df$FPP.to.PAX)
+boxplot(df$FPP.to.PAX)$out
+
+boxplot(df$Num.of.Non_FPP.PAX)
+boxplot(df$Num.of.Non_FPP.PAX)$out
+```
+
+Finding correlation between numerical variables and target variable
+```{r}
+cors <- cor(df[,(colnames(df) %in% c('Days', 'Tuition','FRP.Active','FRP.Cancelled',
+                                     'FRP.Take.up.percent.','Cancelled.Pax','Total.Discount.Pax','Total.School.Enrollment',
+                                     'EZ.Pay.Take.Up.Rate','FPP','Total.Pax','SPR.Group.Revenue','DifferenceTraveltoFirstMeeting',
+                                     'DifferenceTraveltoLastMeeting','FPP.to.School.enrollment','FPP.to.PAX','Num.of.Non_FPP.PAX'))], 
+            df[,colnames(df) %in% c('Retained.in.2012.')])
+kable(cors,col.names=c('Retained.in.2012.'))
+
+plot(df[,(colnames(df) %in% c('Days', 'Tuition','FRP.Active','FRP.Cancelled',
+                              'FRP.Take.up.percent.','Cancelled.Pax','Total.Discount.Pax','Total.School.Enrollment',
+                              'EZ.Pay.Take.Up.Rate','FPP','Total.Pax','SPR.Group.Revenue','DifferenceTraveltoFirstMeeting',
+                              'DifferenceTraveltoLastMeeting','FPP.to.School.enrollment','FPP.to.PAX','Num.of.Non_FPP.PAX','Retained.in.2012.'))])
+```
+
+Based on the correlation values, below are the important numerical variables:
+
+FPP                    
+Total.Pax           
+FRP.Active             
+Total.Discount.Pax    
+Num.of.Non_FPP.PAX 
+FPP.to.PAX 
+Total.School.Enrollment 
+FRP.Cancelled          
+FPP.to.School.enrollment
+Cancelled.Pax 
+
+
+Converting target variable from numeric to factor
+```{r}
+df$Retained.in.2012. <- as.factor(ifelse(df$Retained.in.2012. == 1,"HIGH","LOW"))
+```
+
+Calculate chi-square values for categorical variables (Descending order of X-Squared, Higher = More important)
+```{r}
+chisq.test(df$Program.Code, df$Retained.in.2012., correct=FALSE) 
+chisq.test(df$From.Grade, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$To.Grade, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Group.State, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Is.Non.Annual., df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Travel.Type, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Special.Pay, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Poverty.Code, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Region, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$CRM.Segment, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$School.Type, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Parent.Meeting.Flag, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$MDR.Low.Grade, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$MDR.High.Grade, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$Income.Level, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$School.Sponsor, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SPR.Product.Type, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SPR.New.Existing, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$NumberOfMeetingswithParents, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SchoolGradeTypeLow, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SchoolGradeTypeHigh, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SchoolGradeType, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$DepartureMonth, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$GroupGradeTypeLow, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$GroupGradeTypeHigh, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$GroupGradeType, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$MajorProgramCode, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SingleGradeTripFlag, df$Retained.in.2012., correct=FALSE)
+chisq.test(df$SchoolSizeIndicator, df$Retained.in.2012., correct=FALSE)
+```
+
+Based on the chi-square values, below are the important categorical variables:
+
+SingleGradeTripFlag
+From.Grade
+Is.Non.Annual.
+SPR.New.Existing
+SchoolGradeType
+To.Grade
+CRM.Segment
+SchoolGradeTypeHigh
+Group.State
+GroupGradeType
+Program.Code
+
+
+## Random Forest Model construction
+```{r}
+# Identifying the best value of mtry using validation set
+set.seed(222)
+ind <- sample(2, nrow(df), replace = TRUE, prob = c(0.7, 0.3))
+train <- df[ind==1,]
+test <- df[ind==2,]
+
+pr.err <- c()
+for(mt in seq(1, sqrt(ncol(train) - 1)))
+{
+  rf <- randomForest(Retained.in.2012. ~., data = train, ntree = 100, mtry = mt, 
+                     proximity = T, importance = T)
+  pred <- predict(rf, newdata = test, type = "class")
+  pr.err<- c(pr.err, mean(pred != test$Retained.in.2012.))
+}
+
+bestmtry <- which.min(pr.err)
+bestmtry
+
+rf <- randomForest(Retained.in.2012. ~., data = train, ntree = 100, mtry = bestmtry,
+                   proximity = T, importance = T)
+p1 <- predict(rf, data = train)
+p2<- predict(rf, newdata = test)
+
+#we can find the accuracy of train and test data from the confusion matrix
+confusionMatrix(data=p1, reference = train$Retained.in.2012.)
+confusionMatrix(data=p2, reference = test$Retained.in.2012.)
+
+
+# Function to calculate Evaluation Measures
+evaluation.measure <- function(actual, prediction)
+{
+  y <- as.vector(table(actual,prediction))
+  names(y) <- c("TP","FN","FP","TN")
+  Accuracy <- (y["TP"]+y["TN"])/sum(y)
+  Error <- 1- Accuracy
+  Recall <- ((y["TP"])/(y["TP"]+y["FN"])) * (y["TP"]+y["FN"])
+  em <- c(Accuracy, Error, Recall)
+  return(em)
+}
+
+#varImpPlot(rf)
+```
+```{r}
+knitr::include_graphics("plot_zoom_png")
+```
+
+## Decision tree construction based on pruning parameters minsplit, minbucket and CP
+```{r}
+set.seed(96)
+```
+
+############################## MODEL 1: 70:30 SPLIT #################################
+```{r}
+#Using the index function to assign 1&2 to the observations in the dataset named data.
+index <- sample(2, nrow(df), replace = T, prob = c(0.7,0.3))
+
+#selecting index 1 for training data
+train <- df[index == 1,]
+
+#selecting index 2 for testing data
+test <- df[index == 2,]
+
+#Creating formula with all the Retained.in.2012. variables using ., to serve as an input parameter to rpart.
+MyFormula = Retained.in.2012. ~.
+
+#Develop a decision tree.
+mytree_70_30_basic <- rpart(MyFormula, data=train)
+
+#Predict function to predict the classes for the decision tree mytree_70_30_basic for training data.
+mytree_train_predict_70_30 <- predict(mytree_70_30_basic, data = train , type = "class")
+
+#Calculating the training error by comparing predicted classes with Retained.in.2012. variable of original dataset. 
+mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$Retained.in.2012.)
+
+#Predict function to predict the classes for the decision tree mytree_70_30 for testing data.
+mytree_test_predict_70_30 <- predict(mytree_70_30_basic, newdata = test, type = "class")
+
+#Calculating the testing error by comparing predicted classes with Retained.in.2012. variable of original dataset.
+mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$Retained.in.2012.)
+
+#Calculating the performance of the model by finding the difference between the test error & train data.
+diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+print(diff_70_30)
+```
+
+Based on summary, using with CP = 0.01000000 for the least xerror
+```{r, include=FALSE}
+summary(mytree_70_30_basic)
+```
+
+############ APPLYING PARAMETER VALUES TO ARRIVE AT BETTER PERFORMANCE FOR MODEL 2: 70-30 SPLIT###############
+Creating vectors for minsplit and minbucket values to be used for different combinations to test performance.
+
+```{r}
+msplt <- c(12,48,102)
+mbckt <- c(4,16,34)
+
+for (i in msplt)
+{
+  for (j in mbckt)
+  {
+    mytree_70_30 <- rpart(MyFormula, data = train,control = rpart.control (minsplit = i,minbucket = j, cp = 0.01000000))
+    
+    mytree_train_predict_70_30 <- predict(mytree_70_30, data = train , type = "class")
+    
+    mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$Retained.in.2012.)
+    
+    mytree_test_predict_70_30 <- predict(mytree_70_30, newdata = test, type = "class")
+    
+    mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$Retained.in.2012.)
+    
+    diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+    diff_70_30
+    print(diff_70_30)
+    
+    ############################## Confusion Matrix for 70:30 Split #################################################
+    
+    cfmt <- table(train$Retained.in.2012.,mytree_train_predict_70_30)
+    print(cfmt)
+    
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_train =  (tp)/(tp+fp)
+    accuracymodel_train = (tp+tn)/(tp+tn+fp+fn)
+    recall_train = (tp)/(tp+fn)
+    fscore_train = (2*(recall_train*precision_train))/(recall_train+precision_train)
+    
+    cfmt <- table(test$Retained.in.2012.,mytree_test_predict_70_30)
+    print(cfmt)
+    
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_test =  (tp)/(tp+fp)
+    accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+    recall_test = (tp)/(tp+fn)
+    fscore_test = (2*(recall_test*precision_test))/(recall_test+precision_test)
+    
+    # Printing the values for train data error, test data error, performance and other parameters.
+    print(paste("Train data error: ", mytree_train_error_70_30))
+    print(paste("Test data error: ", mytree_test_error_70_30))
+    print(paste("Difference/performance", diff_70_30))
+    print(paste("precision of training data: ", precision_train))
+    print(paste("accuracy of training data: ", accuracymodel_train))
+    print(paste("recall of training data: ", recall_train))
+    print(paste("F-score of training data: ", fscore_train))
+    print(paste("precision of test data: ", precision_test))
+    print(paste("accuracy of test data: ", accuracymodel_test))
+    print(paste("recall of test data: ", recall_test))
+    print(paste("F-score of test data: ", fscore_test))
+  }
+}
+```
+
+############################### MODEL 3: 80:20 SPLIT ##########################################
+```{r}
+#Assigning 1 & 2 as index to split test and train data 
+set.seed(96)
+index <- sample(2, nrow(df), replace = T, prob = c(0.8,0.2))
+
+#selecting index 1 for training
+train <- df[index == 1,]
+
+#selecting index 1 for testing
+test <- df[index == 2,]
+
+#Creating formula with all the Retained.in.2012. variables using ., to serve as an input parameter to rpart.
+MyFormula = Retained.in.2012.~.
+
+mytree_80_20_basic = rpart(MyFormula, data=train)
+
+#Predict function to predict the classes for the decision tree mytree_80_20_basic for training data.
+mytree_train_predict_80_20 <- predict(mytree_80_20_basic, data = train , type = "class")
+
+#Calculating the training error by comparing predicted classes with Retained.in.2012. variable of original dataset. 
+mytree_train_error_80_20 <- mean(mytree_train_predict_80_20 != train$Retained.in.2012.)
+
+#Predict function to predict the classes for the decision tree mytree_80_20 for testing data.
+mytree_test_predict_80_20 <- predict(mytree_80_20_basic, newdata = test, type = "class")
+
+#Calculating the testing error by comparing predicted classes with Retained.in.2012. variable of original dataset.
+mytree_test_error_80_20 <- mean(mytree_test_predict_80_20 != test$Retained.in.2012.)
+
+#Calculating the performance of the model by finding the difference between the test error & train data.
+diff_80_20 = mytree_test_error_80_20 - mytree_train_error_80_20
+
+print(diff_80_20)
+```
+
+Based on summary, using with CP = 0.02732240 for the least xerror
+```{r, include=FALSE}
+summary(mytree_80_20_basic)
+```
+
+
+############ APPLYING PARAMETER VALUES TO ARRIVE AT BETTER PERFORMANCE FOR MODEL 4: 80-20 SPLIT###############
+Creating vectors for minsplit and minbucket values to be used for different combinations to test performance.
+```{r}
+msplt <- c(12,48,102)
+mbckt <- c(4,16,34)
+for (i in msplt)
+{
+  for (j in mbckt)
+  {
+    
+    mytree_80_20 <- rpart(MyFormula, data = train, parms = list(split="gini"),control = rpart.control (minsplit = i,minbucket = j,cp=0.02732240))
+    
+    mytree_train_predict_80_20 <- predict(mytree_80_20, data = train , type = "class")
+
+    mytree_train_error_80_20 <- mean(mytree_train_predict_80_20 != train$Retained.in.2012.)
+    
+    mytree_test_predict_80_20 <- predict(mytree_80_20, newdata = test, type = "class")
+    
+    mytree_test_error_80_20 <- mean(mytree_test_predict_80_20 != test$Retained.in.2012.)
+    
+    diff_80_20 = mytree_test_error_80_20 - mytree_train_error_80_20
+    diff_80_20
+    print(diff_80_20)
+    
+    ############################## Confusion Matrix for 80:20 Split #################################################
+    
+    cfmt <- table(train$Retained.in.2012.,mytree_train_predict_80_20)
+    print(cfmt)
+    
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_train =  (tp)/(tp+fp)
+    accuracymodel_train = (tp+tn)/(tp+tn+fp+fn)
+    recall_train = (tp)/(tp+fn)
+    fscore_train = (2*(recall_train*precision_train))/(recall_train+precision_train)
+    
+    cfmt <- table(test$Retained.in.2012.,mytree_test_predict_80_20)
+    print(cfmt)
+    
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_test =  (tp)/(tp+fp)
+    accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+    recall_test = (tp)/(tp+fn)
+    fscore_test = (2*(recall_test*precision_test))/(recall_test+precision_test)
+    
+    #Printing the values for train data error, test data error, performance and other parameters.
+    print(paste("Train data error: ", mytree_train_error_80_20))
+    print(paste("Test data error: ", mytree_test_error_80_20))
+    print(paste("Difference/performance", diff_80_20))
+    print(paste("precision of training data: ", precision_train))
+    print(paste("accuracy of training data: ", accuracymodel_train))
+    print(paste("recall of training data: ", recall_train))
+    print(paste("F-score of training data: ", fscore_train))
+    print(paste("precision of test data: ", precision_test))
+    print(paste("accuracy of test data: ", accuracymodel_test))
+    print(paste("recall of test data: ", recall_test))
+    print(paste("F-score of test data: ", fscore_test))
+    
+
+  }
+}
+      
+  predicteddtProb <- predict(mytree_80_20, newdata = test, type = "prob")[,2]
+  pred1 <- prediction(predicteddtProb, test$Retained.in.2012.)
+  perf1 <- performance(pred1, "tpr", "fpr")
+  plot(perf1,colorize=TRUE)
+  
+  rpart.plot(mytree_80_20)
+  
+```
+
+The below shows the error, recall values on train and test data for both 70-30 split and 80-20 split.
+```{r}
+knitr::include_graphics("Values.jpeg")
+```
+
+## Cross Validation :: K Fold Approach
+
+```{r}
+k <- 10
+folds <- cut(seq(1,nrow(df)),breaks = k, labels = FALSE)
+
+models.acc <- matrix(-1,k,2,dimnames=list(paste0("Fold ", 1:k, " Accuracy"), c("DecisionTree","RandomForest")))
+models.err <- matrix(-1,k,2,dimnames=list(paste0("Fold ", 1:k , " Error"), c("DecisionTree","RandomForest")))
+
+emeasure.model.dt <- matrix(-1,k,3,dimnames=list(paste0("Fold", 1:k), c("Accuracy","Error","Recall")))
+emeasure.model.rf <- matrix(-1,k,3,dimnames=list(paste0("Fold", 1:k), c("Accuracy","Error","Recall")))
+
+for(i in 1:k)
+{
+  testIndexes <- which(folds==i, arr.ind=TRUE) 
+  testData <- df[testIndexes, ]
+  trainData <- df[-testIndexes, ]
+  
+  # Decision Tree
+  dt <- rpart(Retained.in.2012. ~ ., data = trainData, parms = list(split = "information")
+              ,control=rpart.control(minsplit = 12, minbucket = 4, cp=0.02))
+  predicteddt <- predict(dt, newdata = testData,type="class")
+  emeasure.model.dt[i,"Accuracy"] <- evaluation.measure(testData$Retained.in.2012.,predicteddt)[1]
+  emeasure.model.dt[i,"Error"] <- evaluation.measure(testData$Retained.in.2012.,predicteddt)[2]
+  emeasure.model.dt[i,"Recall"] <- evaluation.measure(testData$Retained.in.2012.,predicteddt)[3]
+  
+  # Random Forest
+  rf <- randomForest(Retained.in.2012. ~ ., data= trainData, ntree = 100, mtry= 
+                       bestmtry, proximity = T, importance = T)
+  
+  predictedrf <- predict(rf, newdata = testData, type = "class")
+  emeasure.model.rf[i,"Accuracy"] <- evaluation.measure(testData$Retained.in.2012.,predictedrf)[1]
+  emeasure.model.rf[i,"Error"] <- evaluation.measure(testData$Retained.in.2012.,predictedrf)[2]
+  emeasure.model.rf[i,"Recall"] <- evaluation.measure(testData$Retained.in.2012.,predictedrf)[3]
+}
+
+totalPositive <- table(df$Retained.in.2012.)[[1]]
+
+Final <- matrix(c(mean(emeasure.model.dt[,"Accuracy"]), 
+                  mean(emeasure.model.dt[,"Error"]), 
+                  sum(emeasure.model.dt[,"Recall"])/totalPositive,
+                  mean(emeasure.model.rf[,"Accuracy"]), 
+                  mean(emeasure.model.rf[,"Error"]), 
+                  sum(emeasure.model.rf[,"Recall"])/totalPositive),ncol = 2)
+colnames(Final) <- c("DecisionTree","RandomForest")
+rownames(Final) <- c("Accuracy","Error","Weighted Recall")
+
+Final
+```
+
+## Summary
+
+The first step for our model building is doing the EDA. 
+We identified the NA values in the dataset. For the numerical variables, we replaced the NA values with the mean and for categorical variables, we replaced the NA values with the frequently repeated value.
+We also constructed boxplots to identify the outliers.
+To find the important variables, we calculated the correlation values between numerical variables and the target variable. We calculated chisquare values between categorical variables and the target variable.
+
+The second step is we constructed the random forest with different mtry values. The best mtry value for our model is 45. We are also constructing ROC curve.
+
+The third step is we constructed decision trees with 70-30 split and 80-20 split. We used different minsplit, minbucket and cp values to get the best decision tree. In our case the best decision tree is for 80-20 split as it has the maximum recall value of 90% on the test data. We chose recall as the measure as we are focused on false-negatives. i.e telling a customer who can be retained as not retained. this would affect the business. We are also constructing ROC curve for the best decision tree.
+
+The fourth step is, we are performing cross-validation on both random forest and decision tree with 10 folds. We are calculating the average of accuracy and error, weighted average of recall to identify which model performs better. We have identified decision tree as the best model based on recall value which is around 89.5%. Since our training dataset is small, which is close to 1600 rows, the base classifier is better than ensemble classifier.
+
+
+
