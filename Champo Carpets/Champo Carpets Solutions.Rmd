@@ -1,0 +1,1257 @@
+---
+title: "Champo Carpets"
+author: "Meghashree Maddihally Nagoji"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+library("readxl")
+library("DataCombine")
+library("naniar")
+library("dplyr")
+library("tidyverse")
+library("rpart")
+library("rpart.plot")
+library("fastDummies")
+library("randomForest")
+library("ROSE")
+library("clustMixType")
+library("factoextra")
+library("nnet")
+library("NeuralNetTools")
+library("plyr")
+library("adabag")
+library("caret")
+library("fastAdaboost")
+library("adabag")
+library("tree")
+library("ggplot2")
+library("ggcorrplot")
+library("corrplot")
+library("kableExtra")
+library("knitr")
+library("ltm")
+library("psych")
+library("gmodels")
+library("ROCR")
+library("lsa")
+```
+
+## QUESTION 1 
+
+# Cleaning Raw data set
+
+```{r}
+#Defining the vector to contain all possible values which need to be replaced with NA.
+na_strings <- c("NA", "N A", "N / A", "N/A", "N/ A", "Not Available", "NOt available","-","", " ")
+
+#Reading excel into a variable by mentioning the path of the excel file into function read_excel & Setting missing values in variable to NA
+raw_data<-read_excel("Champo Carpets.xlsx",sheet=2,na = na_strings)
+
+#Removing Column "Customer Order date, as it does not qualify for Numeric/Factor
+raw_data <- subset(raw_data,select = -c(Custorderdate,CustomerOrderNo,TotalArea))
+
+#Calculating mean of Amount.
+Amount_mean <- mean(raw_data$Amount)
+
+#Replacing 0 in numeric variables to the mean of the variable values.
+raw_data <- raw_data %>%
+            mutate(Amount = ifelse(Amount == 0,Amount_mean,Amount))
+
+#str(raw_data)
+#view(raw_data)
+```
+
+
+# Exploratory Data Analysis on Raw Data set
+
+Bar Graphs for important variables in Raw dataset
+```{r}
+ggplot(raw_data)+
+  geom_bar(aes(x=CountryName)) + theme_classic()
+#From the graph, it is clear that USA, India and UK are the countries with highest number of samples and orders.
+
+ggplot(raw_data)+
+  geom_bar(aes(x=ITEM_NAME)) + theme_classic()
+#Hand Tufted, Durray, and Double Back are the most popular items.
+
+ggplot(raw_data)+
+  geom_bar(aes(x=ShapeName)) + theme_classic()
+#Majority of the items were of Rectangular shape.
+```
+
+
+# Cleaning Sample data set
+
+```{r}
+#Reading excel into a variable by mentioning the path of the excel file into function read_excel & creating NA
+sample_data<-read_excel("Champo Carpets.xlsx",sheet=4)
+
+#Removing the columns that are not required
+sample_data <- subset(sample_data, select = -c(USA,UK,Italy,Belgium,Romania,Australia,India,
+                             `Hand Tufted`,Durry,`Double Back`,`Hand Woven`,
+                             Knotted,Jacquard,Handloom,Other,REC,Round,Square))
+
+
+#Converting required variables to categorical
+sample_data$CustomerCode <- as.factor(sample_data$CustomerCode)
+sample_data$CountryName <- as.factor(sample_data$CountryName)
+sample_data$ITEM_NAME <- as.factor(sample_data$ITEM_NAME)
+sample_data$ShapeName <- as.factor(sample_data$ShapeName)
+
+#str(sample_data)
+#view(sample_data)
+```
+
+
+# Exploratory Data Analysis on Sample Data Set
+
+```{r}
+#Checking if there are any NA values
+sum(is.na(sample_data))
+
+
+#Finding the outliers in numerical variables
+boxplot(sample_data$QtyRequired)
+#boxplot(sample_data$QtyRequired)$out
+
+boxplot(sample_data$AreaFt)
+#boxplot(sample_data$AreaFt)$out
+
+
+#Finding correlation between numerical variables and target variable
+cors <- cor(sample_data[,(colnames(sample_data) %in% c('QtyRequired', 'AreaFt'))], 
+            sample_data[,colnames(sample_data) %in% c('Order Conversion')])
+cors
+
+plot(sample_data[,(colnames(sample_data) %in% c('QtyRequired', 'AreaFt','Order Conversion'))])
+
+#Based on the correlation values, QtyRequired seems to be an important numerical variable.
+
+Converted_NotConverted <- sample_data$`Order Conversion`<- as.factor(ifelse(sample_data$`Order Conversion` == 1,"CONVERTED","NOT CONVERTED"))
+
+
+#Calculate chi-square values for categorical variables (Descending order of X-Squared, Higher = More important)
+
+chisq.test(sample_data$CustomerCode, sample_data$`Order Conversion`, correct=FALSE) 
+chisq.test(sample_data$CountryName, sample_data$`Order Conversion`, correct=FALSE)
+chisq.test(sample_data$ITEM_NAME, sample_data$`Order Conversion`, correct=FALSE)
+chisq.test(sample_data$ShapeName, sample_data$`Order Conversion`, correct=FALSE)
+
+#Based on the chi-square values, below are the important categorical variables:
+#CustomerCode
+#CountryName
+#ITEM_NAME
+
+
+#Proportion of converted to not converted cases.
+
+tbl <- table(Converted_NotConverted)
+tbl_pct <- cbind(tbl,round(prop.table(tbl)*100,2))
+colnames(tbl_pct) <- c('Count','Percentage')
+knitr::kable(tbl_pct, format = "markdown")
+
+
+#Density Graphs - Finding correlation between numerical variables and target variable.
+
+ggplot(sample_data)+
+  geom_density(aes(x=QtyRequired,color=`Order Conversion`,fill=`Order Conversion`),alpha=0.5) + theme_classic()
+#The plot shows higher density of Converted and Not converted cases when the QtyRequired is around 10. Then it's a flat line showing as QtyRequired increases, we do not have cases for Converted and Not Converted. 
+
+ggplot(sample_data)+
+  geom_density(aes(x=AreaFt,color=`Order Conversion`,fill=`Order Conversion`),alpha=0.5) + theme_classic()
+#The plot shows higher density of Not converted cases when the AreaFt is between 0 to 50. Between 50 to 100 AreaFt we see a moderate density for Converted cases. Beyond AreaFt of 100, we have very less cases of Converted and Not Converted.
+
+
+#Bar Graphs - Finding correlation between categorical variables and target variable.
+
+ggplot(sample_data)+
+  geom_bar(aes(x=CustomerCode,fill=`Order Conversion`)) + theme_classic()
+#For customer code CC we have the highest number of Converted and Not Converted cases. For the rest of the Customer code values, there arent many cases.
+
+ggplot(sample_data)+
+  geom_bar(aes(x=CountryName,fill=`Order Conversion`)) + theme_classic()
+#We can see that India and US are the countries to which highest number of samples were sent. Most of them were not converted. Most of the samples that were sent to Belgium were converted.
+
+ggplot(sample_data)+
+  geom_bar(aes(x=ITEM_NAME,fill=`Order Conversion`)) + theme_classic()
+#Majority of the sample items that were sent: Double Back, Durray, Hand Tufted and Handwoven. Most of them were not converted.
+
+ggplot(sample_data)+
+  geom_bar(aes(x=ShapeName,fill=`Order Conversion`)) + theme_classic()
+#As seen from the graph, majority of the samples that were sent were of Rectangle shape. 
+```
+
+
+
+
+## QUESTION 2
+
+
+Champo Carpets' business problems with appropriate solutions:
+
+In many instances, the samples sent to the customers were not getting converted into orders. Customers sent different samples with similar designs. These samples costed the Champo Carpets a lot (low conversion rate)
+
+1: To avoid creation of costly sample designs instead, creating appropriate samples which could generate maximum revenue for the organization.
+
+In order to produce appropriate samples, we can implement a classification learning algorithm on the sample data which did/did not lead to a sale. This can be achieved through:
+- decision trees (with appropriate splitting, pruning parameters), further, as this problem would focus more on avoiding false positives (i.e, leads falsely marked as positive) as this would lead to high cost of sample production, therefore, precision of the model should be primary focus.
+
+For example: Decision rules to find the features contributing toward conversion or non-conversion.
+
+- regression models can help us analyse the important factors that contribute towards the sale of products, thus leading to focussed efforts by Champo Carpets to generate higher revenue.
+
+2: Developing models such as clustering to identify customer preferences and recommendations systems.
+
+In order to solve the above problem, customer clustering could be designed based on past purchase patterns and cross recommendation of products within the same cluster could be performed. This will increase the likelihood of the customer of the same cluster with other similar customers to purchase the product. Also, find the correlated customers for product suggestions.
+
+
+
+
+## QUESTION 3
+
+# Building Models on Unbalanced Sample Data Set
+
+# Neural Network on unbalanced Sample data set
+
+```{r}
+#Normalizing all numerical variables
+myscale <- function (x)
+{
+  (x - min(x))/ (max(x) - min(x))
+}
+
+neural_data <- sample_data %>% mutate_if(is.numeric, myscale)
+
+#summary(neural_data)
+#str(neural_data)
+#view(neural_data)
+
+#Partitioning data into train and test sets
+set.seed(1234)
+ind <- sample(2, nrow(neural_data), replace = T, prob = c(0.7,0.3))
+train <- neural_data[ind == 1, ]
+test <- neural_data[ind == 2, ]
+```
+
+```{r,include=FALSE}
+#Neural network model
+
+#After playing with different values of maxit i.e 1000 and 1500, the algorithm stopped at 1240th iteration. Hence, choosing this value
+nnModel <- nnet(`Order Conversion` ~ ., data = train, linout = F,  size = 10, decay = 0.01, maxit = 1240)
+#summary(nnModel)
+```
+
+```{r,include=FALSE}
+plotnet(nnModel)
+```
+```{r}
+knitr::include_graphics("NeuralPlot.jpeg")
+```
+
+```{r}
+#nnModel$wts
+#nnModel$fitted.values
+
+
+#The darker lines shows that the weights corresponding to these nodes are higher. i.e these  variables are more important.
+#Based on the weights below are the important variables:
+#AreaFt(20.99)
+#QtyRequired (15.03) 
+#Item_NameHandTufted (7.07)
+#CustomerCodeM-1(6.02)
+
+
+#On test data
+nn.preds <- predict(nnModel, test)
+#nn.preds
+nn.preds.class <- as.factor(predict(nnModel, test, type = "class"))
+#nn.preds.class
+
+nn.preds = predict(nnModel, test)
+nn.preds = as.factor(predict(nnModel, test, type = "class"))
+
+
+#confusion matrix
+CM <- table(nn.preds.class, test$`Order Conversion`)
+print(CM)
+
+
+#Checking performance of neural network
+error_metric = function(CM)
+{
+  TP =CM[1,1] 
+  TN =CM[2,2]
+  FN =CM[1,2] 
+  FP =CM[2,1] 
+  recall = (TP) / (TP+FN)
+  precision = (TP)/(TP+FP) #calculating precision of test data
+  falsePositiveRate = (FP) / (FP+TN)
+  falseNegativeRate = (FN) / (FN+TP)
+  error =(FP+FN)/(TP+TN+FP+FN)
+  modelPerf <- list("precision" = precision,
+                    "recall" = recall,
+                    "falsepositiverate" = falsePositiveRate,
+                    "falsenegativerate" = falseNegativeRate,
+                    "error" = error)
+  return(modelPerf)
+}
+
+outPutlist <- error_metric(CM)
+
+df <- ldply(outPutlist, data.frame)
+setNames(df, c("", "Values"))
+
+#Both precision and recall are not that good. Error rate is less. Our model is not performing that well on unbalanced test data.
+#precision = 66.66%
+#recall = 86.1%
+#Error rate = 8.4%
+
+
+#Creating validation data set
+set.seed(156)
+indx <- sample(2, nrow(train), replace = T, prob = c(0.5, 0.5))
+train2 <- train[indx == 1, ]
+validation <- train[indx == 2, ]
+```
+
+```{r,include=FALSE}
+#Trying different values for Decay parameter on validation data set
+err <- vector("numeric", 100)
+d <- seq(0.0001, 1, length.out=100)
+k = 1
+for(i in d) {
+  mymodel <- nnet(`Order Conversion`  ~., data = train2, decay = i, size = 10, maxit = 500)
+  pred.class <- predict(mymodel, newdata = validation, type = "class")
+  err[k] <- mean(pred.class != validation$`Order Conversion` )
+  k <- k +1
+}
+```
+
+```{r}
+plot(d, err)
+
+#Choosing the d value for which the error is minimum. That is the best decay value.
+#From the graph it is 0.01
+```
+
+
+# Decision trees construction on unbalanced Sample data set
+
+```{r}
+#str(sample_data)
+set.seed(96)
+
+index <- sample(2, replace = T, nrow(sample_data), prob = c(0.7,0.3))
+
+train <- sample_data[index== 1,]
+
+test <- sample_data[index== 2,]
+
+MyFormula = `Order Conversion` ~. 
+
+mytree_70_30_basic <- rpart(MyFormula, data=train)
+
+#summary(mytree_70_30_basic)
+#print(mytree_70_30_basic)
+
+rpart.plot(mytree_70_30_basic)
+
+#From the decision tree, below are the important variables:
+#CustomerCode
+#ITEM_NAME
+#AreaFt
+
+#Predict function to predict the classes for the decision tree mytree_70_30_basic for training data.
+mytree_train_predict_70_30 <- predict(mytree_70_30_basic, data = train , type = "class")
+
+#Calculating the training error by comparing predicted classes with target variable of original dataset. 
+mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$`Order Conversion`)
+
+mytree_train_error_70_30 
+#Error on training data is 9.2%
+
+table(train$`Order Conversion`)
+#Only 20% of the samples will be converted to orders. Majority of the samples are not converted.
+
+#Predict function to predict the classes for the decision tree mytree_70_30 for testing data.
+mytree_test_predict_70_30 <- predict(mytree_70_30_basic, newdata = test, type = "class")
+
+#Calculating the testing error by comparing predicted classes with target variable of original dataset.
+mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$`Order Conversion`)
+
+mytree_test_error_70_30
+#Error on test data is 9.5%
+
+#Calculating the performance of the model by finding the difference between the test error & train data.
+diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+
+diff_70_30
+#difference between training and test error is 0.3% 
+
+
+#APPLYING PARAMETER VALUES TO ARRIVE AT BETTER PERFORMANCE FOR 70-30 MODEL
+#Creating vectors for minsplit and minbucket values to be used for different combinations to test performance CP: 0.01 with least xerror of 0.4951100
+
+msplt <- c(12,48,102)
+mbckt <- c(4,16,34)
+
+for (i in msplt)
+{
+  for (j in mbckt)
+  {
+    #Using rpart function to construct the decision tree based on training data,split on gini.  
+    mytree_70_30 <- rpart(MyFormula, data = train, parms = list(split="gini") ,control = rpart.control (minsplit = i,minbucket = j,cp=0.01))
+    
+    #Predict function to predict the classes for the decision tree mytree_70_30 for training data.
+    mytree_train_predict_70_30 <- predict(mytree_70_30, data = train , type = "class")
+    
+    
+    #Calculating the training error by comparing predicted classes with target variable of original dataset. 
+    mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$`Order Conversion`)
+    
+    #Predict function to predict the classes for the decision tree mytree_70_30 for testing data.
+    mytree_test_predict_70_30 <- predict(mytree_70_30, newdata = test, type = "class")
+    
+    #Calculating the testing error by comparing predicted classes with target variable of original dataset.
+    mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$`Order Conversion`)
+    
+    #Calculating the performance of the model by finding the difference between the test error & train data.
+    diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+    
+    
+    #Confusion Matrix for 70:30 Split
+    #As the sample costs are high, the precision should be high as samples should only be sent for actual conversion not false positive
+    
+    cfmt <- table(mytree_train_predict_70_30,train$`Order Conversion`)
+    print (cfmt)
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_train =  (tp)/(tp+fp)
+    accuracymodel_train = (tp+tn)/(tp+tn+fp+fn)
+    recall_train = (tp)/(tp+fn)
+    fscore_train = (2*(recall_train*precision_train))/(recall_train+precision_train)
+    
+    
+    #Confusion matrix on test data
+    cfmt <- table(mytree_test_predict_70_30,test$`Order Conversion`)
+    print(cfmt)
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_test =  (tp)/(tp+fp)
+    accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+    recall_test = (tp)/(tp+fn)
+    fscore_test = (2*(recall_test*precision_test))/(recall_test + precision_test)
+    
+    #Printing the values for train data error, test data error, performance and other parameters.
+    print(paste("Train data error: ", mytree_train_error_70_30))
+    print(paste("Test data error: ", mytree_test_error_70_30))
+    print(paste("Difference/performance", diff_70_30))
+    print(paste("precision of training data: ", precision_train))
+    print(paste("accuracy of training data: ", accuracymodel_train))
+    print(paste("recall of training data: ", recall_train))
+    print(paste("F-score of training data: ", fscore_train))
+    print(paste("precision of test data: ", precision_test))
+    print(paste("accuracy of test data: ", accuracymodel_test))
+    print(paste("recall of test data: ", recall_test))
+    print(paste("F-score of test data: ", fscore_test))
+  }
+}
+
+#Performance has been the same irrespective of different values of msplt and mbckt
+#Train error - 9.20%
+#Test error - 9.50%
+#Difference between Train and Test error - 0.30%
+#Precision of Training Data - 65.70%
+#Accuracy of Training Data - 90.70%
+#Recall of Training Data - 84.80%
+#F-Score of Training data - 74.10%
+#Precision of Test Data - 65.70%
+#Accuracy of Test Data - 90.70%
+#Recall of Test Data - 84.80%
+#F-Score of Test data - 74.10%
+
+
+rpart.plot(mytree_70_30)
+
+#Decision trees from the above plot:
+#A strong decision rule from the above tree is:
+#If CustomerCode is not equal to A-9, C-1, C-2, E-2, F-2, F-6, H-2, I-2, JL, M-1, M-2, P-5, PD, RC, T-4 
+#and ITEM_NAME is not equal to GUN TUFTED, INDO-TIBBETAN, KNOTTED, POWER LOOM JACQUARD, TABLE TUFTED
+#and AreaFt<67 THEN NOT CONVERTED
+```
+
+
+# Random Forest on unbalanced Sample data set
+
+```{r}
+sample_data_rf <- sample_data
+#str(sample_data_rf)
+
+
+#Determining important variables
+rf_imp <- randomForest(`Order Conversion` ~ ., data=sample_data_rf, mtry = sqrt(ncol(sample_data_rf)-1), 
+                       ntree = 100, proximity = T , importance = T)
+
+importance(rf_imp, type = 2) #MeanDecreaseGini
+#Based on the MeanDecreaseGini values below are the variables in order of importance:
+#AreaFt             
+#ITEM_NAME          
+#CustomerCode  
+#CountryName        
+
+
+ind <- sample(2, nrow(sample_data_rf), replace = T, prob = c(0.7, 0.3))
+Train <- sample_data_rf[ind == 1, ]
+Validation <- sample_data_rf[ind == 2, ]
+pr.err <- c()
+for(mt in seq(1,ncol(Train))){
+  rf1 <- randomForest(`Order Conversion` ~., data = Train,ntree = 100, 
+                      mtry = ifelse(mt == ncol(Train),
+                                    mt-1, mt))
+  predicted <- predict(rf1, newdata = Validation, type = "class")
+  pr.err <- c(pr.err,mean(Validation$`Order Conversion` != predicted))
+}
+
+
+#Calculating Best mtry value.
+bestmtry <- which.min(pr.err)
+bestmtry  #3
+rf1 <- randomForest(`Order Conversion` ~., data = Train, ntree = 100, mtry = bestmtry)
+print(rf1) 
+
+#OOB estimate of  error rate: 8.16%
+
+
+#Confusion Matrix
+cfmt <- table(predicted,Validation$`Order Conversion`)
+print(cfmt)
+
+fp = cfmt[2,1]
+fn = cfmt[1,2]
+tn = cfmt[2,2]
+tp = cfmt[1,1]
+
+#Calculating precision by dividing true positive with the sum of true positive and false positive.
+precision_test =  (tp)/(tp+fp)
+accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+recall_test = (tp)/(tp+fn)
+fscore_test = (2*(recall_test*precision_test))/(recall_test + precision_test)
+print(paste("precision of test data: ", precision_test))
+print(paste("accuracy of test data: ", accuracymodel_test))
+print(paste("recall of test data: ", recall_test))
+print(paste("F-score of test data: ", fscore_test))
+
+#Random Forest produces better recall of 84.1% on unbalanced data. Has precision of 72.05%. F-Score is 77.6%
+
+#Drawing evaluation chart - ROC Curve
+
+predicteddtProb <- predict(rf1, newdata = Validation, type = "prob")[,2]
+pred <- prediction(predicteddtProb, Validation$`Order Conversion`)
+perf <- performance(pred, "tpr", "fpr")
+plot(perf,colorize=TRUE)
+
+#From the graph, the threshold value is 0.2
+```
+
+
+# Logistic Regression on unbalanced Sample data set
+
+```{r}
+logistic_data <- sample_data 
+
+set.seed(96)
+#As we got NA values for CountryName, removing CustomerCode column
+logistic_data <- subset(logistic_data,select = -c(CustomerCode)) 
+ind <- sample(2, nrow(logistic_data), replace = T, prob = c(0.7, 0.3))
+Train <- logistic_data[ind == 1, ]
+Test <- logistic_data[ind == 2, ]
+
+#Generalized linear Model
+LogReg <- glm(`Order Conversion` ~., data = Train, family = "binomial")
+summary(LogReg)
+
+#Choosing important variables based on p-value. A p-value less than 0.05 is statistically significant.
+#From our summary, below are the important variables:
+#CountryNameBELGIUM 
+#CountryNameCANADA
+#CountryNameROMANIA 
+#ITEM_NAMEGUN TUFTED 
+#ITEM_NAMEHANDWOVEN
+#ITEM_NAMEKNOTTED 
+#ITEM_NAMEPOWER LOOM JACQUARD
+#ITEM_NAMETABLE TUFTED
+#ShapeNameROUND 
+#AreaFt
+
+
+#Performance of the logistic regression model
+#Residual variance has decreased when compared to Null deviance which shows the quality of prediction has improved.
+#Null deviance: 4090.4  on 4064  degrees of freedom
+#Residual deviance: 2439.7  on 4004  degrees of freedom 
+
+```
+
+# Boosting on unbalanced Sample data set
+
+Boosting on unbalanced data set takes a very long time to build the model. Hence, unable to print the results and commented the code.
+
+```{r}
+#boosting_data <- sample_data 
+#set.seed(96)
+
+#ind <- sample(2, nrow(boosting_data), replace = T, prob = c(0.7, 0.3))
+#train <- boosting_data[ind == 1, ]
+#test <- boosting_data[ind == 2, ]
+
+#model = boosting(`Order Conversion` ~ ., data=train, boos=TRUE, mfinal=50)
+#print(names(model))
+#print(model$trees[1])
+
+#pred = predict(model, test)
+#print(pred$confusion)
+#print(pred$error)
+
+#result = data.frame(test$`Order Conversion`, pred$prob, pred$class)
+#print(result)
+
+#cross-validation method
+#cvmodel = boosting.cv(`Order Conversion` ~ ., data=boosting_data, boos=TRUE, mfinal=10, v=5)
+
+#print(cvmodel[-1])                         
+#print(data.frame(boosting_data$`Order Conversion`, cvmodel$class))
+```
+
+
+# Balancing Sample Data Set
+
+```{r}
+sample_data_balanced <- sample_data
+
+#Renaming the 'Order Conversion' column to 'OrderConversion'
+colnames(sample_data_balanced)[which(names(sample_data_balanced) == "Order Conversion")] <- "OrderConversion"
+
+#Summary of Data Before Balancing
+summary(sample_data_balanced$OrderConversion)
+#str(sample_data_balanced)
+
+balanced.data <- ovun.sample(OrderConversion ~ ., data = sample_data_balanced, method = "over", N = 9305)$data
+
+#Summary of Data After Balancing
+summary(balanced.data$OrderConversion)
+```
+
+
+# Building Models on Balanced Sample Data Set
+
+# Neural Network on Balanced Sample data set
+
+```{r}
+#Normalizing all numerical variables
+myscale <- function (x)
+{
+  (x - min(x))/ (max(x) - min(x))
+}
+
+neural_data_balanced <- balanced.data %>% mutate_if(is.numeric, myscale)
+
+#summary(neural_data_balanced)
+#view(neural_data_balanced)
+
+#Partitioning data into train and test sets
+set.seed(1234)
+ind <- sample(2, nrow(neural_data_balanced), replace = T, prob = c(0.7,0.3))
+train <- neural_data_balanced[ind == 1, ]
+test <- neural_data_balanced[ind == 2, ]
+```
+
+```{r,include=FALSE}
+#Neural network model
+
+#After playing with different values of maxit i.e 1000 and 1500, the algorithm stopped at 1240th iteration. Choosing 1250 as the number of iterations
+nnModel <- nnet(OrderConversion ~ ., data = train, linout = F,  size = 10, decay = 0, maxit = 1250)
+```
+
+
+```{r,include=FALSE}
+plotnet(nnModel)
+```
+
+```{r}
+knitr::include_graphics("NeuralPlotBalanced.jpeg")
+```
+
+```{r}
+#nnModel$wts
+#nnModel$fitted.values
+
+#summary(nnModel)
+#The darker lines shows that the weights corresponding to these nodes are higher. i.e these  variables are more important.
+#Based on the weights below are the important variables:
+#AreaFt(18.57)
+#QtyRequired (26.03) 
+#CustomerCodeM-2(4.82)
+
+#On test data
+nn.preds <- predict(nnModel, test)
+#nn.preds
+nn.preds.class <- as.factor(predict(nnModel, test, type = "class"))
+#nn.preds.class
+
+nn.preds = predict(nnModel, test)
+nn.preds = as.factor(predict(nnModel, test, type = "class"))
+
+
+#confusion matrix
+CM <- table(nn.preds.class, test$OrderConversion)
+print(CM)
+
+
+#Checking performance of neural network
+error_metric = function(CM)
+{
+  TN =CM[2,1] 
+  TP =CM[1,2]
+  FP =CM[2,2] 
+  FN =CM[1,1] 
+  recall = (TP) / (TP+FN)
+  precision = (TP)/(TP+FP) #calculating precision of test data
+  falsePositiveRate = (FP) / (FP+TN)
+  falseNegativeRate = (FN) / (FN+TP)
+  error =(FP+FN)/(TP+TN+FP+FN)
+  modelPerf <- list("precision" = precision,
+                    "recall" = recall,
+                    "falsepositiverate" = falsePositiveRate,
+                    "falsenegativerate" = falseNegativeRate,
+                    "error" = error)
+  return(modelPerf)
+}
+
+outPutlist <- error_metric(CM)
+
+df <- ldply(outPutlist, data.frame)
+setNames(df, c("", "Values"))
+
+
+#Both precision and recall values have increased. Our model is performing better on balanced test data.
+#precision = 81.4%
+#recall = 93.52%
+#Error rate = 12.1%
+
+
+#Creating validation data set
+set.seed(156)
+indx <- sample(2, nrow(train), replace = T, prob = c(0.5, 0.5))
+train2 <- train[indx == 1, ]
+validation <- train[indx == 2, ]
+```
+
+```{r,include=FALSE}
+#Trying different values for Decay parameter on validation data set
+err <- vector("numeric", 100)
+d <- seq(0.0001, 1, length.out=100)
+k = 1
+for(i in d) {
+  mymodel <- nnet(OrderConversion  ~., data = train2, decay = i, size = 10, maxit = 500)
+  pred.class <- predict(mymodel, newdata = validation, type = "class")
+  err[k] <- mean(pred.class != validation$OrderConversion )
+  k <- k +1
+}
+```
+
+```{r}
+plot(d, err)
+
+#Choosing the d value for which the error is minimum. That is the best decay value.
+#From the graph it is 0
+```
+
+
+# Decision trees construction on balanced Sample data set
+
+```{r}
+#str(balanced.data)
+
+dt_data_balanced <- balanced.data
+set.seed(96)
+
+index <- sample(2, replace = T, nrow(dt_data_balanced), prob = c(0.7,0.3))
+
+train <- dt_data_balanced[index== 1,]
+
+test <- dt_data_balanced[index== 2,]
+
+MyFormula = OrderConversion ~. 
+
+mytree_70_30_basic <- rpart(MyFormula, data=train)
+
+#summary(mytree_70_30_basic)
+
+#print(mytree_70_30_basic)
+
+rpart.plot(mytree_70_30_basic)
+#From the decision tree, below are the important variables:
+#CustomerCode
+#ITEM_NAME
+#AreaFt
+#QtyRequired
+
+#Predict function to predict the classes for the decision tree mytree_70_30_basic for training data.
+mytree_train_predict_70_30 <- predict(mytree_70_30_basic, data = train , type = "class")
+
+#Calculating the training error by comparing predicted classes with response variable of original dataset. 
+mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$OrderConversion)
+
+mytree_train_error_70_30 
+#Error on balanced training data is 15.9%
+
+table(train$OrderConversion)
+#50% of the samples will be converted to orders on balanced data set
+
+#Predict function to predict the classes for the decision tree mytree_70_30 for testing data.
+mytree_test_predict_70_30 <- predict(mytree_70_30_basic, newdata = test, type = "class")
+
+#Calculating the testing error by comparing predicted classes with response variable of original dataset.
+mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$OrderConversion)
+
+mytree_test_error_70_30
+#Error on balanced testing data is 16.1%
+
+#Calculating the performance of the model by finding the difference between the test error & train data.
+diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+
+diff_70_30
+#Difference between training and testing balanced data is 0.15%
+
+
+#APPLYING PARAMETER VALUES TO ARRIVE AT BETTER PERFORMANCE FOR 70-30 MODEL
+#Creating vectors for minsplit and minbucket values to be used for different combinations to test performance CP: 0.01 with least xerror of 0.3301212
+
+msplt <- c(12,48,102)
+mbckt <- c(4,16,34)
+
+for (i in msplt)
+{
+  for (j in mbckt)
+  {
+    #Using rpart function to construct the decision tree based on training data,split on gini.  
+    mytree_70_30 <- rpart(MyFormula, data = train, parms = list(split="gini") ,control = rpart.control (minsplit = i,minbucket = j,cp=0.01))
+    
+    #Predict function to predict the classes for the decision tree mytree_70_30 for training data.
+    mytree_train_predict_70_30 <- predict(mytree_70_30, data = train , type = "class")
+    
+    
+    #Calculating the training error by comparing predicted classes with response variable of original dataset. 
+    mytree_train_error_70_30 <- mean(mytree_train_predict_70_30 != train$OrderConversion)
+    
+    #Predict function to predict the classes for the decision tree mytree_70_30 for testing data.
+    mytree_test_predict_70_30 <- predict(mytree_70_30, newdata = test, type = "class")
+    
+    #Calculating the testing error by comparing predicted classes with response variable of original dataset.
+    mytree_test_error_70_30 <- mean(mytree_test_predict_70_30 != test$OrderConversion)
+    
+    #Calculating the performance of the model by finding the difference between the test error & train data.
+    diff_70_30 = mytree_test_error_70_30 - mytree_train_error_70_30
+    
+    #Confusion Matrix for 70:30 Split
+    #As the sample costs are high, the precision should be high as samples should only be sent for actual conversion not false positive
+    
+    cfmt <- table(mytree_train_predict_70_30,train$OrderConversion)
+    print (cfmt)
+    fp = cfmt[2,1]
+    fn = cfmt[1,2]
+    tn = cfmt[2,2]
+    tp = cfmt[1,1]
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_train =  (tp)/(tp+fp)
+    accuracymodel_train = (tp+tn)/(tp+tn+fp+fn)
+    recall_train = (tp)/(tp+fn)
+    fscore_train = (2*(recall_train*precision_train))/(recall_train+precision_train)
+    
+    #Confusion matrix on test data
+    cfmt <- table(mytree_test_predict_70_30,test$OrderConversion)
+    print(cfmt)
+    
+    #Calculating precision by dividing true positive with the sum of true positive and false positive.
+    precision_test =  (tp)/(tp+fp)
+    accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+    recall_test = (tp)/(tp+fn)
+    fscore_test = (2*(recall_test*precision_test))/(recall_test + precision_test)
+    
+    #Printing the values for train data error, test data error, performance and other parameters.
+    print(paste("Train data error: ", mytree_train_error_70_30))
+    print(paste("Test data error: ", mytree_test_error_70_30))
+    print(paste("Difference/performance", diff_70_30))
+    print(paste("precision of training data: ", precision_train))
+    print(paste("accuracy of training data: ", accuracymodel_train))
+    print(paste("recall of training data: ", recall_train))
+    print(paste("F-score of training data: ", fscore_train))
+    print(paste("precision of test data: ", precision_test))
+    print(paste("accuracy of test data: ", accuracymodel_test))
+    print(paste("recall of test data: ", recall_test))
+    print(paste("F-score of test data: ", fscore_test))
+  }
+}
+
+#Performance has been the same irrespective of different values of msplt and mbckt. But the performance has increased on balanced data.
+#Train error - 15.90%
+#Test error - 16.10%
+#Difference between Train and Test error - 0.15%
+#Precision of Training Data - 93.1%
+#Accuracy of Training Data - 84%
+#Recall of Training Data - 78.6%
+#F-Score of Training data - 85.3%
+#Precision of Test Data - 93.1%
+#Accuracy of Test Data - 84%
+#Recall of Test Data - 78.6%
+#F-Score of Test data - 85.3%
+
+rpart.plot(mytree_70_30)
+
+#Decision trees from the above plot:
+#A strong decision rule from the above tree is:
+#If CustomerCode is equal to B-2, B-3 CC, CTS, F-1, K-2, K-3, L-3, L-4, L-5, M-2, N-1, P-4, PC, S-3, T-2, T-5, TGT, V-1
+#and ITEM_NAME is equal to DOUBLE BACK, DURRAY, HAND TUFTED, HANDLOOM, HANDWOVEN, JACQUARD
+#and AreaFt<23
+#and QtyReequired < 10
+#THEN NOT CONVERTED
+
+
+#Comparing results of unbalanced data set and balanced data set for decision trees.
+
+knitr::include_graphics("DTPerformance.jpeg")
+```
+
+
+# Random Forest on balanced Sample data set
+
+```{r}
+sample_data_rf_balanced <- balanced.data
+#str(sample_data_rf_balanced)
+
+#Determining important variables
+rf_imp <- randomForest(OrderConversion ~ ., data=sample_data_rf_balanced, mtry = sqrt(ncol(sample_data_rf_balanced)-1), 
+                       ntree = 100, proximity = T , importance = T)
+
+importance(rf_imp, type = 2) #MeanDecreaseGini
+#Based on the MeanDecreaseGini values below are the variables in order of importance:
+#AreaFt             
+#ITEM_NAME          
+#CustomerCode  
+#CountryName     
+
+ind <- sample(2, nrow(sample_data_rf_balanced), replace = T, prob = c(0.7, 0.3))
+Train <- sample_data_rf_balanced[ind == 1, ]
+Validation <- sample_data_rf_balanced[ind == 2, ]
+pr.err <- c()
+for(mt in seq(1,ncol(Train))){
+  rf1 <- randomForest(OrderConversion ~., data = Train, ntree = 100, 
+                      mtry = ifelse(mt == ncol(Train),
+                                    mt-1, mt))
+  predicted <- predict(rf1, newdata = Validation, type = "class")
+  pr.err <- c(pr.err,mean(Validation$OrderConversion != predicted))
+}
+
+#Calculating Best mtry value.
+bestmtry <- which.min(pr.err)
+bestmtry  #4
+rf1 <- randomForest(OrderConversion ~., data = Train, ntree = 100, mtry = bestmtry)
+print(rf1) 
+
+#OOB estimate of  error rate: 11.37%
+
+
+#Confusion Matrix
+cfmt <- table(predicted,Validation$OrderConversion)
+print(cfmt)
+
+fn =cfmt[2,1] 
+tp =cfmt[2,2]
+fp =cfmt[1,2] 
+tn =cfmt[1,1]
+
+#Calculating precision by dividing true positive with the sum of true positive and false positive.
+precision_test =  (tp)/(tp+fp)
+accuracymodel_test = (tp+tn)/(tp+tn+fp+fn)
+recall_test = (tp)/(tp+fn)
+fscore_test = (2*(recall_test*precision_test))/(recall_test + precision_test)
+print(paste("precision of test data: ", precision_test))
+print(paste("accuracy of test data: ", accuracymodel_test))
+print(paste("recall of test data: ", recall_test))
+print(paste("F-score of test data: ", fscore_test))
+
+#Random Forest produces better recall of 92.61% on unbalanced data. Has precision of 82.98%. F-Score is 87.5%
+
+
+#Drawing evaluation chart - ROC Curve
+
+predicteddtProb <- predict(rf1, newdata = Validation, type = "prob")[,1]
+pred <- prediction(predicteddtProb, Validation$OrderConversion)
+perf <- performance(pred, "tpr", "fpr")
+plot(perf,colorize=TRUE)
+
+#From the graph, the threshold value is less than 0.2, which shows that the performance has increased.
+```
+
+
+# Logistic Regression on balanced Sample data set
+
+```{r}
+logistic_data_balanced <- balanced.data 
+
+set.seed(96)
+
+#As we got NA values for CountryName, removing CustomerCode column
+logistic_data_balanced <- subset(logistic_data_balanced,select = -c(CustomerCode)) 
+ind <- sample(2, nrow(logistic_data_balanced), replace = T, prob = c(0.7, 0.3))
+Train <- logistic_data_balanced[ind == 1, ]
+Test <- logistic_data_balanced[ind == 2, ]
+
+#Generalized linear Model
+LogReg <- glm(OrderConversion ~., data = Train, family = "binomial")
+#summary(LogReg)
+
+#Choosing important variables based on p-value. A p-value less than 0.05 is statistically significant.
+#From our summary, below are the important variables:
+#CountryNameBELGIUM 
+#CountryNameCANADA
+#CountryNameINDIA
+#CountryNameITALY  
+#QtyRequired                    
+#ITEM_NAMEGUN TUFTED 
+#ITEM_NAMEHANDWOVEN
+#ITEM_NAMEKNOTTED 
+#ITEM_NAMEPOWER LOOM JACQUARD
+#ITEM_NAMETABLE TUFTED
+#ShapeNameSQUARE                 
+#AreaFt
+
+
+#Performance of the logistic regression model
+#Residual variance has decreased when compared to Null deviance which shows the quality of prediction has improved.
+#Null deviance: 8960.9  on 6463  degrees of freedom
+#Residual deviance: 5577.0  on 6436  degrees of freedom 
+```
+
+
+# Boosting on balanced Sample data set
+
+```{r}
+boosting_data_balanced <- balanced.data 
+set.seed(96)
+
+#Splitting the data into train and test data
+ind <- sample(2, nrow(boosting_data_balanced), replace = T, prob = c(0.7, 0.3))
+train <- boosting_data_balanced[ind == 1, ]
+test <- boosting_data_balanced[ind == 2, ]
+
+#Using boosting function to build the model
+model = boosting(OrderConversion ~ ., data=train, boos=TRUE, mfinal=50)
+
+#Checking model properties
+print(names(model))
+print(model$trees[1])
+
+#Predicting on test data
+pred = predict(model, test)
+
+#confusion matrix
+print(pred$confusion)
+
+#Error on the test data is 13.1%
+print(pred$error)
+
+#probability of each class in the test data set
+result = data.frame(test$OrderConversion, pred$prob, pred$class)
+#print(result)
+
+#cross-validation method
+cvmodel = boosting.cv(OrderConversion ~ ., data=boosting_data_balanced, boos=TRUE, mfinal=10, v=5)
+
+print(cvmodel[-1])                         
+#print(data.frame(boosting_data_balanced$OrderConversion, cvmodel$class))
+#error from cross validation is 14.9
+```
+
+# Selecting best models:
+
+We are considering Precision as the performance measure for our models as we have to avoid False Positives as it would cost a lot to the company. Below are the observations made for different models:
+
+Neural network:
+precision - 80%
+Recall - 92%
+
+Decision Trees:
+precision - 93.10%
+recall - 78.60%
+
+Random Forest:
+precision - 84%
+recall - 91%
+
+As, Precision is high in Decision Trees. We are considering Decision trees as the best model
+
+
+
+
+## QUESTION 4
+
+
+The data that we are using for clustering is 'Data for Clustering'. The first step involves converting all the variables to numerical values.
+
+Clustering all the customers into certain groups based on their purchasing habits of products based on  ITEM_NAME, Shape Name etc.. Then come up with different strategies for different groups (closeness between data points and distance) which can in turn be used for recommendation of sending appropriate samples to ensure conversion.
+
+Use elbow method to come up with optimal number of clusters.
+
+Feature engineering would involve selecting appropriate columns from the data set. We can use columns such as 'Country Name', 'Shape' and 'Color' from the raw data set to improve the clusters.
+
+All of these are implemented in Question 6.
+
+
+
+
+
+## QUESTION 5
+
+There are two clustering algorithms which can be used for segmenting Champo Carpets’s customers:
+
+1. k-means clustering
+
+We are choosing k-means clustering because of the following advantages.
+As our data set is large and has many variables, we use k-means as it performs better.
+Also, as we do not have a target variable (unsupervised), and do not know the group the clusters belong to, we use k-means.
+
+2. hierarchical clustering
+
+Euclidean distance measure is suitable in case of k-means clustering. i.e distance between the object and its cluster centroid.
+
+
+
+
+## QUESTION 6
+
+# k-means clustering
+
+```{r}
+cluster<-read_excel("Champo Carpets.xlsx", sheet=6)
+
+df <- cluster
+
+final <- df
+
+final <- data.frame(column_to_rownames(final, var = "Row Labels"))
+
+myscale <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+final <- final %>% mutate_if(is.numeric, myscale)
+
+set.seed(1234)
+
+km <- kmeans(final, centers = 6, nstart = 100)
+
+km
+
+#Accuracy of the model is 74.2%
+
+fviz_cluster(km, data = final)
+
+#For getting the summary of each cluster characteristics
+cluster1 <- df[which( km$cluster == 1),]
+#summary(cluster1)
+cluster2 <- df[which( km$cluster == 2),]
+#summary(cluster2)
+cluster3 <- df[which( km$cluster == 3),]
+#summary(cluster3)
+cluster4 <- df[which( km$cluster == 4),]
+#summary(cluster4)
+cluster4 <- df[which( km$cluster == 5),]
+#summary(cluster5)
+cluster4 <- df[which( km$cluster == 6),]
+#summary(cluster6)
+
+mydata<-final
+wss<-(nrow(mydata)-1)*sum(apply(mydata,2,var))
+for(i in 1:15)
+  wss[i]<-sum(kmeans(mydata, centers = i)$withinss)
+plot(1:15,wss,type = "b",xlab = "Number of clusters", ylab = "Within groups sum of squares", pch=20, cex=2)
+
+
+#Hierarchical clustering method
+distance <- dist(final, method = "euclidean")
+hcomplete <- hclust(distance, method = "single")
+plot(hcomplete, cex = 0.7, hang = -2, main = "Dendrogram for hclust - complete")
+
+
+clusters <- cutree(hcomplete, k =6)
+
+rect.hclust(hcomplete, k =6, border = 2:8)
+```
+
+
+From the elbow graph in Question 6, we can observe that, after k=9, the graph flattens. Hence, we are not going beyond k=9. Also, choosing k=9 is not an optimal solution for our data set. Hence, we are going ahead with k=6.
+
+Significant variable is Item Name. We included columns such as Shape, country from raw data while building the clustering model but the accuracy of the cluster decreased (from 74.2% to 47.5%), Hence, considered Item Name only.
+
+Cluster Characteristics:
+
+
+
+
+
+
+## QUESTION 7
+
+# Recommender System
+
+```{r}
+rec<-read_excel("Champo Carpets.xlsx", sheet=5)
+
+#View(rec)
+
+rec_rbind <- rec[,c(1:21)]
+
+rec_cbind <- rec[,-c(1:24)]
+
+rec_rbind <- data.frame(column_to_rownames(rec_rbind, var = "Customer...1"))
+
+#View(rec_rbind)
+#View(rec_cbind)
+
+dist(rec_rbind)
+#Using Euclidean distance, we try to find the closes customer. For example, lets take customer M-1 and the closest customer would be PC with distance of 1874.005.
+#From the recommendation data set, we can see that, M-1 has bought Double Wowen, Double Back, Knotted but PC has not bought. Hence, we can recommend products these products to PC.
+
+corr <- cor(rec_cbind)
+corrplot(corr, method="pie")
+# Using Pearson correlation, we find the highly correlated customers. For example, take customer C-2, the closest customers would be P5 and PD.
+
+#From the recommendation data set, we can see that, C-2 has bought Hand Tufted but PD has not bought. Hence, we can recommend this product to PD.
+
+m <- data.matrix(rec_cbind)
+cosine(m)
+# Using Cosine similarity, we find the highly correlated customers. For example, take customer H-2, the closest customer would be PD.
+
+#From the recommendation data set, we can see that, H-2 has bought Hand Tufted but PD has not bought. Hence, we can recommend this product to PD.
+
+# We can use any of the three methods to find out closest customers and come up with different recommendation rules.
+```
+
+
+
+
+## QUESTION 8
+
+# Final Recommendation
